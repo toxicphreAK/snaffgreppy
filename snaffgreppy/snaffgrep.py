@@ -6,10 +6,11 @@ from pathlib import Path
 
 app = typer.Typer()
 
-snaff_re = re.compile(r"^\[(?P<execution_system>).*\] (?P<found_timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z) \[(?P<found_type>.*)\] \{(?P<found_rating>.*)\}\<(?P<found_details>.*)\>\((?P<found_path>.*)\) (?P<found_content>.*)")
-filename_re = re.compile(r"^([a-zA-Z0-9\s_\\.\-\(\):])+.\w*$")
-pass_re = re.compile(r"[Pp][aA][sS][sS]([wW][oO][rR][dD])*|[Pp][wW][dD]")
-url_re = re.compile(r"https?:\/\/(www\\*\.)?[-a-zA-Z0-9@:%\\._\+~#=$]{1,256}\\*\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+\\.~#?&//=]*)")
+SNAFF_RE = re.compile(r"^\[(?P<execution_system>).*\] (?P<found_timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z) \[(?P<found_type>.*)\] \{(?P<found_rating>.*)\}\<(?P<found_details>.*)\>\((?P<found_path>.*)\) (?P<found_content>.*)")
+FILENAME_RE = re.compile(r"^([a-zA-Z0-9\s_\\.\-\(\):])+.\w*$")
+PASS_RE = re.compile(r"[Pp][aA][sS][sS]([wW][oO][rR][dD])*|[Pp][wW][dD]")
+URL_RE = re.compile(r"https?:\/\/(www\\*\.)?[-a-zA-Z0-9@:%\\._\+~#=$]{1,256}\\*\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+\\.~#?&//=]*)")
+FILENAMEONLY_RE = re.compile(r"^(\w)*\.\w+$")
 
 
 @app.command()
@@ -27,7 +28,7 @@ def main(
     with open(snaffler_file, "r") as snaffile:
         snaffresults = snaffile.readlines()
     for line in snaffresults:
-        linematch = snaff_re.search(line)
+        linematch = SNAFF_RE.search(line)
         if linematch:
             content = linematch.group("found_content")
             if content.endswith("\\"):
@@ -36,9 +37,16 @@ def main(
             content = content.replace("\\n", "\r\n")
             content = content.replace("\\ ", " ")
             content = content.replace("\\.", ".")
-            # TODO: disable print of fileendings (^\.<fileending>$)
+            content = content.replace("\\#", "#")
+            content = content.replace("\\*", "*")
+            content = content.replace("\\[", "[")
+            content = content.replace("\\\\", "\\")
+            # disable print of filenames and filenendings (only) without content
+            filenameonly = FILENAMEONLY_RE.match(content)
             # filter out "HasPassword,LookNearbyFor.txtFiles"
-            if not content == "HasPassword,LookNearbyFor.txtFiles":
+            if not content == "HasPassword,LookNearbyFor.txtFiles" and \
+                    not filenameonly and \
+                    linematch.group("found_type") == "File":
                 typer.secho(typer.style(linematch.group("found_path"), fg=typer.colors.GREEN))
                 print(content)
                 print()
