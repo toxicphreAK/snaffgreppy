@@ -3,6 +3,8 @@ import re
 
 from pathlib import Path
 
+from dirtree import DirectoryTree
+
 
 app = typer.Typer()
 
@@ -27,6 +29,7 @@ def main(
 ):
     with open(snaffler_file, "r") as snaffile:
         snaffresults = snaffile.readlines()
+    content_library: list = []
     for line in snaffresults:
         linematch = SNAFF_RE.search(line)
         if linematch:
@@ -35,8 +38,12 @@ def main(
                 content = content[:-1]
             content = content.replace("\\r\\n", "\r\n")
             content = content.replace("\\n", "\r\n")
+            content = content.replace("\\t", "\t")
+            content = content.replace("\\(", "(")
+            content = content.replace("\\)", ")")
             content = content.replace("\\ ", " ")
             content = content.replace("\\.", ".")
+            content = content.replace("\\$", "$")
             content = content.replace("\\#", "#")
             content = content.replace("\\*", "*")
             content = content.replace("\\[", "[")
@@ -45,11 +52,37 @@ def main(
             filenameonly = FILENAMEONLY_RE.match(content)
             # filter out "HasPassword,LookNearbyFor.txtFiles"
             if not content == "HasPassword,LookNearbyFor.txtFiles" and \
+                    content not in content_library and \
                     not filenameonly and \
                     linematch.group("found_type") == "File":
                 typer.secho(typer.style(linematch.group("found_path"), fg=typer.colors.GREEN))
                 print(content)
                 print()
+                content_library.append(content)
+
+
+@app.command()
+def paths(
+    snaffler_file: Path = typer.Argument(
+        ...,
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        writable=False,
+        readable=True,
+        resolve_path=True,
+    )
+):
+    paths = [
+        r"\\HOST1.PRAHA.CZCOMPANY.CZ\MONT$\PC02\boot.PC02.wim",
+        r"\\HOST1.PRAHA.CZCOMPANY.CZ\MONT$\PC02\boot.PC05.wim",
+        r"\\HOST1.PRAHA.CZCOMPANY.CZ\Dev$\Apps\NEW set\Unattend.xml",
+        r"\\HOST1.PRAHA.CZCOMPANY.CZ\Dev$\Isos\boot\WinPE.wim"
+    ]
+    tree: DirectoryTree = DirectoryTree()
+    for path in paths:
+        tree.add_unc(path)
+    print(tree.drives)
 
 
 if __name__ == "__main__":
