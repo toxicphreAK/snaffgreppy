@@ -1,3 +1,3 @@
 # snaffgreppy
 
-A tool to parse the snaffler output.
+A tool to parse [snaffler](https://github.com/SnaffCon/Snaffler) output.

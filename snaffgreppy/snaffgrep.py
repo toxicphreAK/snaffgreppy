@@ -1,18 +1,14 @@
 import typer
-import re
 
 from pathlib import Path
 
+from constants import (
+    SNAFF_RE, URL_RE, FILENAMEONLY_RE, PASS_RE, FILENAME_RE, NETUSE_RE
+)
 from dirtree import DirectoryTree
 
 
 app = typer.Typer()
-
-SNAFF_RE = re.compile(r"^\[(?P<execution_system>).*\] (?P<found_timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z) \[(?P<found_type>.*)\] \{(?P<found_rating>.*)\}\<(?P<found_details>.*)\>\((?P<found_path>.*)\) (?P<found_content>.*)")
-FILENAME_RE = re.compile(r"^([a-zA-Z0-9\s_\\.\-\(\):])+.\w*$")
-PASS_RE = re.compile(r"[Pp][aA][sS][sS]([wW][oO][rR][dD])*|[Pp][wW][dD]")
-URL_RE = re.compile(r"https?:\/\/(www\\*\.)?[-a-zA-Z0-9@:%\\._\+~#=$]{1,256}\\*\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+\\.~#?&//=]*)")
-FILENAMEONLY_RE = re.compile(r"^(\w)*\.\w+$")
 
 
 @app.command()
@@ -25,11 +21,15 @@ def main(
         writable=False,
         readable=True,
         resolve_path=True,
+    ),
+    exclusion_content: str = typer.Option(
+        None
     )
 ):
     with open(snaffler_file, "r") as snaffile:
         snaffresults = snaffile.readlines()
     content_library: list = []
+    credentials: dict = {}
     for line in snaffresults:
         linematch = SNAFF_RE.search(line)
         if linematch:
@@ -55,10 +55,27 @@ def main(
                     content not in content_library and \
                     not filenameonly and \
                     linematch.group("found_type") == "File":
+                if exclusion_content:
+                    # TODO: loop
+                    # TODO: only print if exclusion not in content
+                    pass
                 typer.secho(typer.style(linematch.group("found_path"), fg=typer.colors.GREEN))
-                print(content)
+                password = PASS_RE.search(content)
+                if password:
+                    content = content[:password.start()] + typer.style(content[password.start():password.end()], fg=typer.colors.RED) + content[password.end():]
+                typer.secho(content)
                 print()
+                credz = NETUSE_RE.search(content)
+                if credz:
+                    user = ""
+                    if credz.group("domain"):
+                        user += credz.group("domain")  + "\\"
+                    user += credz.group("username")
+                    credentials[user] = credz.group("password")
                 content_library.append(content)
+    typer.secho(typer.style("CREDENTIALS:"), bg=typer.colors.GREEN)
+    for user in credentials:
+        print("\t", user, credentials[user])
 
 
 @app.command()
